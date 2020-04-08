@@ -2,10 +2,19 @@
 struct GUI {
   struct Object {
     virtual operator hiro::mObject*() = 0;
+    virtual auto ref_add() -> void = 0;
+    virtual auto ref_release() -> void = 0;
   };
 
   struct Sizable : Object {
     virtual operator hiro::mSizable*() = 0;
+    virtual void setPosition(float x, float y) {
+      auto sizable = (operator hiro::mSizable*)();
+      sizable->setGeometry(hiro::Geometry(
+        hiro::Position(x, y),
+        sizable->geometry().size()
+      ));
+    }
   };
 
 #define BindShared(Name) \
@@ -15,9 +24,16 @@ struct GUI {
       self->reset(); \
       /*self->destruct();*/ \
     } \
-    auto ref_add() -> void { self.manager->strong++; } \
-    auto ref_release() -> void { \
-      if (--self.manager->strong == 0) delete this; \
+    auto ref_add() -> void override { \
+      self.manager->strong++; \
+      printf("%p ref_add() -> %d\n", self.manager, self.manager->strong); \
+    } \
+    auto ref_release() -> void override { \
+      if (--self.manager->strong == 0) { \
+        printf("%p ref_release() => 0; delete this!\n", self.manager); \
+        delete this; \
+      } \
+      printf("%p ref_release() -> %d\n", self.manager, self.manager->strong); \
     }
 
 #define BindObject(Name) \
@@ -34,6 +50,7 @@ struct GUI {
 
 #define BindSizable(Name) \
     operator hiro::mSizable*() override { \
+      printf("operator mSizable() \n"); \
       return (hiro::mSizable*)self.data(); \
     }
 

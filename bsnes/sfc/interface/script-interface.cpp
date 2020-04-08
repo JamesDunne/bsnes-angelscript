@@ -184,6 +184,38 @@ namespace ScriptInterface {
 
 };
 
+template<class A, class B>
+B* refCast(A* a) {
+  if (a == nullptr) {
+    printf("refCast A is null!\n");
+    return nullptr;
+  }
+
+  B* b = dynamic_cast<B*>(a);
+  if (b != nullptr) {
+    //printf("refCast A to B succeeded %p -> %p\n", a, b);
+    b->ref_add();
+  } else {
+    printf("refCast to B failed!\n");
+  }
+
+  return b;
+}
+
+template< class T >
+auto RegisterSizableMembers(asIScriptEngine *e, const char *type) -> void {
+  int r;
+
+  // casts back and forth:
+  r = e->RegisterObjectMethod("Sizable", (std::string(type) + "@ opCast()").c_str(), asFUNCTION((refCast<ScriptInterface::GUI::Sizable, T>)), asCALL_CDECL_OBJLAST); assert( r >= 0 );
+  r = e->RegisterObjectMethod(type, "Sizable@ opImplCast()", asFUNCTION((refCast<T, ScriptInterface::GUI::Sizable>)), asCALL_CDECL_OBJLAST); assert( r >= 0 );
+  r = e->RegisterObjectMethod("Sizable", (std::string("const ") + std::string(type) + "@ opCast() const").c_str(), asFUNCTION((refCast<ScriptInterface::GUI::Sizable, T>)), asCALL_CDECL_OBJLAST); assert( r >= 0 );
+  r = e->RegisterObjectMethod(type, "const Sizable@ opImplCast() const", asFUNCTION((refCast<T, ScriptInterface::GUI::Sizable>)), asCALL_CDECL_OBJLAST); assert( r >= 0 );
+
+  // Sizable members:
+  r = e->RegisterObjectMethod(type, "void setPosition(float x, float y)", asMETHOD(T, setPosition), asCALL_THISCALL); assert( r >= 0 );
+}
+
 auto Interface::registerScriptDefs() -> void {
   int r;
 
@@ -469,6 +501,12 @@ auto Interface::registerScriptDefs() -> void {
   {
     r = script.engine->SetDefaultNamespace("gui"); assert(r >= 0);
 
+    // Register base types:
+    r = script.engine->RegisterObjectType("Sizable", 0, asOBJ_REF); assert(r >= 0);
+    r = script.engine->RegisterObjectBehaviour("Sizable", asBEHAVE_ADDREF, "void f()", asMETHOD(ScriptInterface::GUI::Sizable, ref_add), asCALL_THISCALL); assert( r >= 0 );
+    r = script.engine->RegisterObjectBehaviour("Sizable", asBEHAVE_RELEASE, "void f()", asMETHOD(ScriptInterface::GUI::Sizable, ref_release), asCALL_THISCALL); assert( r >= 0 );
+    RegisterSizableMembers<ScriptInterface::GUI::Sizable>(script.engine, "Sizable");
+
     // Register types first:
     r = script.engine->RegisterObjectType("Window", 0, asOBJ_REF); assert(r >= 0);
     r = script.engine->RegisterObjectType("VerticalLayout", 0, asOBJ_REF); assert(r >= 0);
@@ -493,41 +531,49 @@ auto Interface::registerScriptDefs() -> void {
     r = script.engine->RegisterObjectBehaviour("Window", asBEHAVE_FACTORY, "Window@ f(float rx, float ry, bool relative)", asFUNCTION(ScriptInterface::GUI::createWindowAtPosition), asCALL_CDECL); assert(r >= 0);
     r = script.engine->RegisterObjectBehaviour("Window", asBEHAVE_ADDREF, "void f()", asMETHOD(ScriptInterface::GUI::Window, ref_add), asCALL_THISCALL); assert( r >= 0 );
     r = script.engine->RegisterObjectBehaviour("Window", asBEHAVE_RELEASE, "void f()", asMETHOD(ScriptInterface::GUI::Window, ref_release), asCALL_THISCALL); assert( r >= 0 );
-    r = script.engine->RegisterObjectMethod("Window", "void append(VerticalLayout @sizable)", asMETHOD(ScriptInterface::GUI::Window, appendSizable), asCALL_THISCALL); assert( r >= 0 );
-    r = script.engine->RegisterObjectMethod("Window", "void append(HorizontalLayout @sizable)", asMETHOD(ScriptInterface::GUI::Window, appendSizable), asCALL_THISCALL); assert( r >= 0 );
-    r = script.engine->RegisterObjectMethod("Window", "void append(LineEdit @sizable)", asMETHOD(ScriptInterface::GUI::Window, appendSizable), asCALL_THISCALL); assert( r >= 0 );
-    r = script.engine->RegisterObjectMethod("Window", "void append(Label @sizable)", asMETHOD(ScriptInterface::GUI::Window, appendSizable), asCALL_THISCALL); assert( r >= 0 );
-    r = script.engine->RegisterObjectMethod("Window", "void append(Button @sizable)", asMETHOD(ScriptInterface::GUI::Window, appendSizable), asCALL_THISCALL); assert( r >= 0 );
-    r = script.engine->RegisterObjectMethod("Window", "void append(Canvas @sizable)", asMETHOD(ScriptInterface::GUI::Window, appendSizable), asCALL_THISCALL); assert( r >= 0 );
     r = script.engine->RegisterObjectMethod("Window", "void set_visible(bool visible)", asMETHOD(ScriptInterface::GUI::Window, setVisible), asCALL_THISCALL); assert( r >= 0 );
     r = script.engine->RegisterObjectMethod("Window", "void set_title(const string &in title)", asMETHOD(ScriptInterface::GUI::Window, setTitle), asCALL_THISCALL); assert( r >= 0 );
     r = script.engine->RegisterObjectMethod("Window", "void set_size(Size &in size)", asMETHOD(ScriptInterface::GUI::Window, setSize), asCALL_THISCALL); assert( r >= 0 );
+
+    r = script.engine->RegisterObjectMethod("Window", "void append(Sizable @sizable)", asMETHOD(ScriptInterface::GUI::HorizontalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
+    //r = script.engine->RegisterObjectMethod("Window", "void append(VerticalLayout @sizable)", asMETHOD(ScriptInterface::GUI::Window, appendSizable), asCALL_THISCALL); assert( r >= 0 );
+    //r = script.engine->RegisterObjectMethod("Window", "void append(HorizontalLayout @sizable)", asMETHOD(ScriptInterface::GUI::Window, appendSizable), asCALL_THISCALL); assert( r >= 0 );
+    //r = script.engine->RegisterObjectMethod("Window", "void append(LineEdit @sizable)", asMETHOD(ScriptInterface::GUI::Window, appendSizable), asCALL_THISCALL); assert( r >= 0 );
+    //r = script.engine->RegisterObjectMethod("Window", "void append(Label @sizable)", asMETHOD(ScriptInterface::GUI::Window, appendSizable), asCALL_THISCALL); assert( r >= 0 );
+    //r = script.engine->RegisterObjectMethod("Window", "void append(Button @sizable)", asMETHOD(ScriptInterface::GUI::Window, appendSizable), asCALL_THISCALL); assert( r >= 0 );
+    //r = script.engine->RegisterObjectMethod("Window", "void append(Canvas @sizable)", asMETHOD(ScriptInterface::GUI::Window, appendSizable), asCALL_THISCALL); assert( r >= 0 );
 
     // VerticalLayout
     r = script.engine->RegisterObjectBehaviour("VerticalLayout", asBEHAVE_FACTORY, "VerticalLayout@ f()", asFUNCTION(ScriptInterface::GUI::createVerticalLayout), asCALL_CDECL); assert(r >= 0);
     r = script.engine->RegisterObjectBehaviour("VerticalLayout", asBEHAVE_ADDREF, "void f()", asMETHOD(ScriptInterface::GUI::VerticalLayout, ref_add), asCALL_THISCALL); assert( r >= 0 );
     r = script.engine->RegisterObjectBehaviour("VerticalLayout", asBEHAVE_RELEASE, "void f()", asMETHOD(ScriptInterface::GUI::VerticalLayout, ref_release), asCALL_THISCALL); assert( r >= 0 );
-    r = script.engine->RegisterObjectMethod("VerticalLayout", "void append(VerticalLayout @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::VerticalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
-    r = script.engine->RegisterObjectMethod("VerticalLayout", "void append(HorizontalLayout @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::VerticalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
-    r = script.engine->RegisterObjectMethod("VerticalLayout", "void append(LineEdit @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::VerticalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
-    r = script.engine->RegisterObjectMethod("VerticalLayout", "void append(Label @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::VerticalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
-    r = script.engine->RegisterObjectMethod("VerticalLayout", "void append(Button @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::VerticalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
-    r = script.engine->RegisterObjectMethod("VerticalLayout", "void append(Canvas @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::VerticalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
     r = script.engine->RegisterObjectMethod("VerticalLayout", "void resize()", asMETHOD(ScriptInterface::GUI::VerticalLayout, resize), asCALL_THISCALL); assert( r >= 0 );
     r = script.engine->RegisterObjectMethod("VerticalLayout", "void set_visible(bool visible)", asMETHOD(ScriptInterface::GUI::VerticalLayout, setVisible), asCALL_THISCALL); assert( r >= 0 );
+
+    RegisterSizableMembers<ScriptInterface::GUI::VerticalLayout>(script.engine, "VerticalLayout");
+    r = script.engine->RegisterObjectMethod("VerticalLayout", "void append(Sizable @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::VerticalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
+    //r = script.engine->RegisterObjectMethod("VerticalLayout", "void append(VerticalLayout @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::VerticalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
+    //r = script.engine->RegisterObjectMethod("VerticalLayout", "void append(HorizontalLayout @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::VerticalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
+    //r = script.engine->RegisterObjectMethod("VerticalLayout", "void append(LineEdit @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::VerticalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
+    //r = script.engine->RegisterObjectMethod("VerticalLayout", "void append(Label @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::VerticalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
+    //r = script.engine->RegisterObjectMethod("VerticalLayout", "void append(Button @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::VerticalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
+    //r = script.engine->RegisterObjectMethod("VerticalLayout", "void append(Canvas @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::VerticalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
 
     // HorizontalLayout
     r = script.engine->RegisterObjectBehaviour("HorizontalLayout", asBEHAVE_FACTORY, "HorizontalLayout@ f()", asFUNCTION(ScriptInterface::GUI::createHorizontalLayout), asCALL_CDECL); assert(r >= 0);
     r = script.engine->RegisterObjectBehaviour("HorizontalLayout", asBEHAVE_ADDREF, "void f()", asMETHOD(ScriptInterface::GUI::HorizontalLayout, ref_add), asCALL_THISCALL); assert( r >= 0 );
     r = script.engine->RegisterObjectBehaviour("HorizontalLayout", asBEHAVE_RELEASE, "void f()", asMETHOD(ScriptInterface::GUI::HorizontalLayout, ref_release), asCALL_THISCALL); assert( r >= 0 );
-    r = script.engine->RegisterObjectMethod("HorizontalLayout", "void append(VerticalLayout @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::HorizontalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
-    r = script.engine->RegisterObjectMethod("HorizontalLayout", "void append(HorizontalLayout @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::HorizontalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
-    r = script.engine->RegisterObjectMethod("HorizontalLayout", "void append(LineEdit @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::HorizontalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
-    r = script.engine->RegisterObjectMethod("HorizontalLayout", "void append(Label @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::HorizontalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
-    r = script.engine->RegisterObjectMethod("HorizontalLayout", "void append(Button @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::HorizontalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
-    r = script.engine->RegisterObjectMethod("HorizontalLayout", "void append(Canvas @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::HorizontalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
     r = script.engine->RegisterObjectMethod("HorizontalLayout", "void resize()", asMETHOD(ScriptInterface::GUI::HorizontalLayout, resize), asCALL_THISCALL); assert( r >= 0 );
     r = script.engine->RegisterObjectMethod("HorizontalLayout", "void set_visible(bool visible)", asMETHOD(ScriptInterface::GUI::HorizontalLayout, setVisible), asCALL_THISCALL); assert( r >= 0 );
+
+    RegisterSizableMembers<ScriptInterface::GUI::HorizontalLayout>(script.engine, "HorizontalLayout");
+    r = script.engine->RegisterObjectMethod("HorizontalLayout", "void append(Sizable @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::HorizontalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
+    //r = script.engine->RegisterObjectMethod("HorizontalLayout", "void append(VerticalLayout @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::HorizontalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
+    //r = script.engine->RegisterObjectMethod("HorizontalLayout", "void append(HorizontalLayout @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::HorizontalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
+    //r = script.engine->RegisterObjectMethod("HorizontalLayout", "void append(LineEdit @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::HorizontalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
+    //r = script.engine->RegisterObjectMethod("HorizontalLayout", "void append(Label @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::HorizontalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
+    //r = script.engine->RegisterObjectMethod("HorizontalLayout", "void append(Button @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::HorizontalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
+    //r = script.engine->RegisterObjectMethod("HorizontalLayout", "void append(Canvas @sizable, Size &in size)", asMETHOD(ScriptInterface::GUI::HorizontalLayout, appendSizable), asCALL_THISCALL); assert( r >= 0 );
 
     // LineEdit
     // Register a simple funcdef for the callback
@@ -539,6 +585,7 @@ auto Interface::registerScriptDefs() -> void {
     r = script.engine->RegisterObjectMethod("LineEdit", "string &get_text()", asMETHOD(ScriptInterface::GUI::LineEdit, getText), asCALL_THISCALL); assert( r >= 0 );
     r = script.engine->RegisterObjectMethod("LineEdit", "void set_text(const string &in text)", asMETHOD(ScriptInterface::GUI::LineEdit, setText), asCALL_THISCALL); assert( r >= 0 );
     r = script.engine->RegisterObjectMethod("LineEdit", "void set_on_change(LineEditCallback @cb)", asMETHOD(ScriptInterface::GUI::LineEdit, setOnChange), asCALL_THISCALL); assert( r >= 0 );
+    RegisterSizableMembers<ScriptInterface::GUI::LineEdit>(script.engine, "LineEdit");
 
     // Label
     r = script.engine->RegisterObjectBehaviour("Label", asBEHAVE_FACTORY, "Label@ f()", asFUNCTION(ScriptInterface::GUI::createLabel), asCALL_CDECL); assert(r >= 0);
@@ -547,6 +594,7 @@ auto Interface::registerScriptDefs() -> void {
     r = script.engine->RegisterObjectMethod("Label", "void set_visible(bool visible)", asMETHOD(ScriptInterface::GUI::Label, setVisible), asCALL_THISCALL); assert( r >= 0 );
     r = script.engine->RegisterObjectMethod("Label", "string &get_text()", asMETHOD(ScriptInterface::GUI::Label, getText), asCALL_THISCALL); assert( r >= 0 );
     r = script.engine->RegisterObjectMethod("Label", "void set_text(const string &in text)", asMETHOD(ScriptInterface::GUI::Label, setText), asCALL_THISCALL); assert( r >= 0 );
+    RegisterSizableMembers<ScriptInterface::GUI::Label>(script.engine, "Label");
 
     // Button
     // Register a simple funcdef for the callback
@@ -558,6 +606,7 @@ auto Interface::registerScriptDefs() -> void {
     r = script.engine->RegisterObjectMethod("Button", "string &get_text()", asMETHOD(ScriptInterface::GUI::Button, getText), asCALL_THISCALL); assert( r >= 0 );
     r = script.engine->RegisterObjectMethod("Button", "void set_text(const string &in text)", asMETHOD(ScriptInterface::GUI::Button, setText), asCALL_THISCALL); assert( r >= 0 );
     r = script.engine->RegisterObjectMethod("Button", "void set_on_activate(ButtonCallback @cb)", asMETHOD(ScriptInterface::GUI::Button, setOnActivate), asCALL_THISCALL); assert( r >= 0 );
+    RegisterSizableMembers<ScriptInterface::GUI::Button>(script.engine, "Button");
 
     // Canvas
     r = script.engine->RegisterObjectBehaviour("Canvas", asBEHAVE_FACTORY, "Canvas@ f()", asFUNCTION(ScriptInterface::GUI::createCanvas), asCALL_CDECL); assert(r >= 0);
@@ -569,6 +618,7 @@ auto Interface::registerScriptDefs() -> void {
     r = script.engine->RegisterObjectMethod("Canvas", "void fill(uint16 color)", asMETHOD(ScriptInterface::GUI::Canvas, fill), asCALL_THISCALL); assert( r >= 0 );
     r = script.engine->RegisterObjectMethod("Canvas", "void pixel(int x, int y, uint16 color)", asMETHOD(ScriptInterface::GUI::Canvas, pixel), asCALL_THISCALL); assert( r >= 0 );
     r = script.engine->RegisterObjectMethod("Canvas", "void draw_sprite_4bpp(int x, int y, uint c, uint width, uint height, const array<uint16> &in tiledata, const array<uint16> &in palette)", asMETHOD(ScriptInterface::GUI::Canvas, draw_sprite_4bpp), asCALL_THISCALL); assert( r >= 0 );
+    RegisterSizableMembers<ScriptInterface::GUI::Canvas>(script.engine, "Canvas");
   }
 
   r = script.engine->SetDefaultNamespace(defaultNamespace); assert(r >= 0);
